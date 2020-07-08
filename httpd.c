@@ -55,6 +55,7 @@ void serve_forever(const char *PORT) {
     if (clients[slot] < 0) {
       perror("accept() error");
     } else {
+      //respond(slot);
       if (fork() == 0) {
         respond(slot);
         exit(0);
@@ -83,7 +84,7 @@ void startServer(const char *port) {
   for (p = res; p != NULL; p = p->ai_next) {
     int option = 1;
     listenfd = socket(p->ai_family, p->ai_socktype, 0);
-    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &option, sizeof(option));
     if (listenfd == -1)
       continue;
     if (bind(listenfd, p->ai_addr, p->ai_addrlen) == 0)
